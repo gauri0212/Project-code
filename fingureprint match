@@ -1,0 +1,89 @@
+% Initialize matrix to store Fourier features for the images in the folder
+folder_path = '/MATLAB Drive/Input dataset/vaibhav project';  % Folder containing the fingerprint images
+image_files = dir(fullfile(folder_path, '*.bmp'));  % Get list of all BMP files in the folder
+
+num_images = numel(image_files);  % Number of images in the folder
+feature_size = 100;  % Number of features to extract from Fourier spectrum
+fourier_features_matrix = zeros(num_images, feature_size);  % Matrix to store Fourier features for each image
+
+% Process each image in the folder
+for idx = 1:num_images
+    % Load fingerprint image
+    img_path = fullfile(folder_path, image_files(idx).name);  % Get the full path of the image
+    img = imread(img_path);  % Load the image
+    
+    % Preprocess the image
+    if size(img, 3) == 3  % If the image is RGB
+        gray_img = rgb2gray(img);  % Convert to grayscale
+    else
+        gray_img = img;  % If it's already grayscale, no need to convert
+    end
+    
+    smooth_img = imgaussfilt(gray_img, 2);  % Apply Gaussian smoothing
+    
+    % Apply Fourier Transform
+    fft_img = fft2(double(smooth_img));  % Compute 2D Fourier Transform
+    fft_magnitude = abs(fftshift(fft_img));  % Shift zero-frequency to center
+    fft_features = fft_magnitude(:);  % Flatten into a vector
+    
+    % Extract top feature_size Fourier coefficients as features
+    [~, idx_sorted] = sort(fft_features, 'descend');
+    selected_features = fft_features(idx_sorted(1:feature_size));  % Select the top features
+    
+    % Store the features in the matrix
+    fourier_features_matrix(idx, :) = selected_features;
+end
+
+% Module to load and process a new input fingerprint for comparison
+new_input_path = '/MATLAB Drive/Input dataset/vaibhav project/00001_02.bmp';  % Path to new fingerprint image
+
+% Load the new fingerprint image
+new_img = imread(new_input_path);  % Load the new fingerprint image
+
+% Preprocess the new fingerprint
+if size(new_img, 3) == 3  % If the image is RGB
+    gray_new = rgb2gray(new_img);  % Convert to grayscale
+else
+    gray_new = new_img;  % If it's already grayscale, no need to convert
+end
+smooth_new = imgaussfilt(gray_new, 2);  % Apply Gaussian smoothing
+
+% Apply Fourier Transform to the new fingerprint
+fft_new = fft2(double(smooth_new));  % Compute 2D Fourier Transform
+fft_new_magnitude = abs(fftshift(fft_new));  % Shift zero-frequency to center
+fft_new_features = fft_new_magnitude(:);  % Flatten into a vector
+
+% Extract top feature_size Fourier coefficients as features
+[~, idx_sorted] = sort(fft_new_features, 'descend');
+new_selected_features = fft_new_features(idx_sorted(1:feature_size));  % Select the top features
+
+% Compare new Fourier features with each stored feature set
+percentage_differences = zeros(num_images, 1);
+
+for i = 1:num_images
+    % Compute squared difference between Fourier features
+    squared_difference = (fourier_features_matrix(i, :) - new_selected_features') .^ 2;
+    
+    % Calculate the percentage difference
+    percentage_differences(i) = (sum(squared_difference) / sum(fourier_features_matrix(i, :) .^ 2)) * 100;
+end
+
+% Find the fingerprint with the most accurate match (smallest percentage difference)
+[~, best_match_index] = min(percentage_differences);
+
+% Display the most accurate matching fingerprint
+disp(['Most accurate match is fingerprint #' num2str(best_match_index)]);
+disp(['Percentage difference: ' num2str(percentage_differences(best_match_index)) '%']);
+
+% Display the input fingerprint and matched fingerprint side by side
+matched_image_path = fullfile(folder_path, image_files(best_match_index).name);
+matched_image = imread(matched_image_path);
+
+figure;
+subplot(2, 1, 1);  % Create subplot for the input fingerprint
+imshow(new_img);
+title('Input Fingerprint');
+
+subplot(2, 1, 2);  % Create subplot for the matched fingerprint
+imshow(matched_image);
+title(['Matched Fingerprint: ' image_files(best_match_index).name]);
